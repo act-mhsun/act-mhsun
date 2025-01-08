@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4G 模块AT命令测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f4f4f4;
+            border: 1px solid #ccc;
+            white-space: pre-wrap;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            width: 300px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .pagination {
+            margin-top: 20px;
+        }
+        .pagination button {
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AT Command Tester 命令测试</h1>
+<!--
+    <button onclick="sendCommand('AT')">Connectivity 模块连接测试</button>
+-->
+    <button onclick="sendCommand('AT+GSN')">获取4G模块IMEI</button>
+    <button onclick="sendCommand('AT+CICCID')">获取SIM卡CCID</button>
+    <button onclick="check4GStatus()">4G 联网测试</button>
+
+    <h2>其他命令Custom AT Command:</h2>
+    <input type="text" id="customCommand" placeholder="Enter custom AT command">
+    <button onclick="sendCustomCommand()">Send Custom Command</button>
+
+    <h2>测试输出Output:</h2>
+    <div class="output" id="output">Response will appear here...</div>
+
+    <h2>4G 联网测试状态输出Status Output:</h2>
+    <div class="output" id="4gOutput">4G status will appear here...</div>
+
+    <h2>测试记录 Test Logs:</h2>
+    <label for="perPage">Entries per page:</label>
+    <input type="number" id="perPage" value="10" min="1" max="100">
+    <button onclick="updatePerPage()">Update</button>
+    <table id="logsTable">
+        <thead>
+            <tr>
+                <th>IMEI</th>
+                <th>Command</th>
+                <th>Response</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Logs will be populated here -->
+        </tbody>
+    </table>
+    <div class="pagination">
+        <button onclick="previousPage()">Previous</button>
+        <span id="pageInfo"></span>
+        <button onclick="nextPage()">Next</button>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let perPage = 10;
+
+        async function sendCommand(command) {
+            const output = document.getElementById("output");
+            output.textContent = "Sending command...";
+
+            try {
+                const response = await fetch("/send_command", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ command }),
+                });
+                const data = await response.json();
+                output.textContent = data.response;
+                fetchLogs(); // Refresh logs after sending a command
+                scrollToLatestLog();
+            } catch (error) {
+                output.textContent = "Error: " + error.message;
+            }
+        }
+
+        async function check4GStatus() {
+            const output = document.getElementById("4gOutput");
+            output.textContent = "Checking 4G status...";
+
+            try {
+                const response = await fetch("/check_4g_status", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                });
+                const data = await response.json();
+                output.textContent = data.response;
+                fetchLogs(); // Refresh logs after checking 4G status
+                scrollToLatestLog();
+            } catch (error) {
+                output.textContent = "Error: " + error.message;
+            }
+        }
+
+        function sendCustomCommand() {
+            const customCommand = document.getElementById("customCommand").value.trim();
+            if (customCommand) {
+                sendCommand(customCommand);
+            } else {
+                alert("Please enter a valid AT command.");
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const response = await fetch(`/get_logs?page=${currentPage}&per_page=${perPage}`);
+                const data = await response.json();
+                renderLogs(data.logs);
+                updatePagination(data.total_logs);
+            } catch (error) {
+                console.error("Error fetching logs:", error);
+            }
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.querySelector("#logsTable tbody");
+            tbody.innerHTML = logs.map(log => `
+                <tr>
+                    <td>${log[0]}</td>
+                    <td>${log[1]}</td>
+                    <td>${log[2]}</td>
+                    <td>${log[3]}</td>
+                </tr>
+            `).join("");
+        }
+
+        function updatePagination(totalLogs) {
+            const pageInfo = document.getElementById("pageInfo");
+            const totalPages = Math.ceil(totalLogs / perPage);
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchLogs();
+            }
+        }
+
+        function nextPage() {
+            currentPage++;
+            fetchLogs();
+        }
+
+        function updatePerPage() {
+            const perPageInput = document.getElementById("perPage");
+            perPage = parseInt(perPageInput.value, 10);
+            fetchLogs();
+        }
+
+        function scrollToLatestLog() {
+            const logsTable = document.getElementById("logsTable");
+            logsTable.scrollIntoView({ behavior: "smooth" });
+        }
+
+        // Fetch logs on page load
+        fetchLogs();
+    </script>
+</body>
+</html>
